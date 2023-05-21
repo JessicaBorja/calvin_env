@@ -160,7 +160,7 @@ class PlayTableSimEnv(gym.Env):
             cv2.waitKey(1)
         elif mode == "rgb_array":
             assert "rgb_static" in rgb_obs, "Environment does not have static camera"
-            return rgb_obs["rgb_static"]
+            return rgb_obs
         else:
             raise NotImplementedError
 
@@ -280,6 +280,8 @@ def get_env(dataset_path, obs_space=None, show_gui=True, **kwargs):
     if "scene" in kwargs:
         scene_cfg = OmegaConf.load(Path(calvin_env.__file__).parents[1] / "conf/scene" / f"{kwargs['scene']}.yaml")
         render_conf.scene = scene_cfg
+    # # Hack for maintaining two repositories
+    # render_conf = OmegaConf.create(OmegaConf.to_yaml(render_conf).replace("calvin_env", "calvin_env"))
     if not hydra.core.global_hydra.GlobalHydra.instance().is_initialized():
         hydra.initialize(".")
     env = hydra.utils.instantiate(render_conf.env, show_gui=show_gui, use_vr=False, use_scene_info=True)

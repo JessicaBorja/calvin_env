@@ -19,8 +19,34 @@ class GripperCamera(Camera):
         self.farval = farval
         self.width = width
         self.height = height
-
+        self.projectionMatrix = p.computeProjectionMatrixFOV(
+            fov=self.fov, aspect=self.aspect, nearVal=self.nearval, farVal=self.farval
+        )
         self.name = name
+        self.tcp2cam_T = self.get_tcp2cam_transform(links['tcp'])
+        self.render()  # generate view Matrix
+
+    def get_tcp2cam_transform(self, tcp_link_id: int):
+        '''
+            Get the transformation between the end effector tcp and the gripper camera
+            input:
+                tcp_link_id (int): pybullet link id of the tcp
+            return (list): position and angle representing the transformation matrix
+                - position (vec3)
+                - orientation (vec4, quaternion x,y,x,w).
+        '''
+        camera_ls = p.getLinkState(
+            bodyUniqueId=self.robot_uid, linkIndex=self.gripper_cam_link, physicsClientId=self.cid
+        )
+        tcp_pos, tcp_orn = p.getLinkState(
+            self.robot_uid, tcp_link_id, physicsClientId=self.cid)[:2]
+
+        camera_pos, camera_orn = camera_ls[:2]
+
+        tcp_to_global = p.invertTransform(tcp_pos, tcp_orn)
+        tcp_to_cam = p.multiplyTransforms(*tcp_to_global,
+                                          camera_pos, camera_orn)
+        return list(tcp_to_cam)
 
     def render(self):
         camera_ls = p.getLinkState(
@@ -31,15 +57,12 @@ class GripperCamera(Camera):
         cam_rot = np.array(cam_rot).reshape(3, 3)
         cam_rot_y, cam_rot_z = cam_rot[:, 1], cam_rot[:, 2]
         # camera: eye position, target position, up vector
-        self.view_matrix = p.computeViewMatrix(camera_pos, camera_pos + cam_rot_y, -cam_rot_z)
-        self.projection_matrix = p.computeProjectionMatrixFOV(
-            fov=self.fov, aspect=self.aspect, nearVal=self.nearval, farVal=self.farval
-        )
+        self.viewMatrix = p.computeViewMatrix(camera_pos, camera_pos + cam_rot_y, -cam_rot_z)
         image = p.getCameraImage(
             width=self.width,
             height=self.height,
-            viewMatrix=self.view_matrix,
-            projectionMatrix=self.projection_matrix,
+            viewMatrix=self.viewMatrix,
+            projectionMatrix=self.projectionMatrix,
             physicsClientId=self.cid,
         )
         rgb_img, depth_img = self.process_rgbd(image, self.nearval, self.farval)
